@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Chat</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div class="chat-container">
+    <header class="chat-header">
+      <h1>💬 Simple Chat</h1>
+      <span class="status-dot"></span>
+    </header>
+    
+    <div id="messages" class="messages-area">
+      <!-- Messages will appear here -->
+      <div class="welcome-message">Welcome to the chat! Start typing below.</div>
+    </div>
+
+    <div class="input-area">
+      <input type="text" id="name" class="name-input" placeholder="Your Name" autocomplete="off">
+      <div class="message-input-wrapper">
+        <textarea id="message" class="msg-input" placeholder="Type a message..." rows="1"></textarea>
+        <button id="send" class="send-btn">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    const messagesDiv = document.getElementById('messages');
+    const nameInput = document.getElementById('name');
+    const messageInput = document.getElementById('message');
+    const sendBtn = document.getElementById('send');
+
+    // Load existing messages
+    fetch('/messages')
+      .then(response => response.json())
+      .then(data => {
+        // Clear welcome message if there are real messages
+        if(data.length > 0) messagesDiv.innerHTML = '';
+        data.forEach(addMessage);
+        scrollToBottom();
+      });
+
+    // Listen for incoming messages
+    socket.on('message', (msg) => {
+      // Remove welcome message if it's the first message
+      const welcome = document.querySelector('.welcome-message');
+      if(welcome) welcome.remove();
+      
+      addMessage(msg);
+      scrollToBottom();
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+    
+    // Send on Enter (but Shift+Enter for new line)
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function sendMessage() {
+      const name = nameInput.value.trim();
+      const message = messageInput.value.trim();
+
+      if (!name || !message) {
+        if(!name) nameInput.focus();
+        else messageInput.focus();
+        return;
+      }
+
+      fetch('/messages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, message })
+      });
+
+      messageInput.value = '';
+      messageInput.focus();
+    }
+
+    function addMessage(data) {
+      const msgDiv = document.createElement('div');
+      const isMe = data.name === nameInput.value;
+      
+      msgDiv.classList.add('message-bubble');
+      if(isMe) msgDiv.classList.add('my-message');
+
+      const header = document.createElement('div');
+      header.classList.add('message-header');
+      header.textContent = data.name;
+
+      const body = document.createElement('div');
+      body.classList.add('message-body');
+      body.textContent = data.message;
+
+      const time = document.createElement('div');
+      time.classList.add('message-time');
+      const date = new Date(data.timestamp || Date.now());
+      time.textContent = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+      msgDiv.appendChild(header);
+      msgDiv.appendChild(body);
+      msgDiv.appendChild(time);
+      messagesDiv.appendChild(msgDiv);
+    }
+
+    function scrollToBottom() {
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
